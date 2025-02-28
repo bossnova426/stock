@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>股票信息</title>
+    <style>
+        body {
+            color: #ffffff;  /* 白色文字 */
+            background-color: #000000;  /* 黑色背景 */
+        }
+        #debug {
+            color: #00ff00;  /* 绿色调试信息 */
+            font-size: 14px;
+            margin: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div id="debug"></div>
+    <script>
+        // 股票代码映射表
+        const codeToIdMap = new Map();
+        
+        // 从GitHub加载股票数据
+        fetch('https://raw.githubusercontent.com/bossnova426/jiyi/main/stockdata.txt')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('数据文件加载失败: ' + response.status);
+                }
+                return response.text();
+            })
+            .then(data => {
+                // 添加调试信息
+                document.getElementById('debug').innerHTML = '正在加载映射数据...';
+                
+                // 初始化映射
+                data.trim().split('\n').forEach(line => {
+                    const [id, name, code] = line.trim().split(/\s+/);
+                    if (id && name && code) {
+                        codeToIdMap.set(code, id);
+                    }
+                });
+                
+                // 显示加载成功信息
+                document.getElementById('debug').innerHTML = 
+                    '映射数据加载成功，共 ' + codeToIdMap.size + ' 条记录<br>' +
+                    '开始处理跳转...';
+                // 处理URL参数
+                processStockCode();
+            })
+            .catch(error => {
+                document.getElementById('debug').innerHTML = '加载映射数据失败: ' + error;
+            });
+        function processStockCode() {
+            // 检查是否在通达信浏览器中
+            const isTdxBrowser = navigator.userAgent.includes('Mozilla/5.0') && 
+                               window.location.href.includes('bossnova426.github.io');
+            
+            if (!isTdxBrowser) {
+                document.getElementById('debug').innerHTML = '请在通达信浏览器中打开此页面';
+                return;
+            }
+
+            const urlParams = new URLSearchParams(window.location.search);
+            let stockCode = urlParams.get('code');
+            
+            // 处理通达信特殊的 xxxxxx 占位符
+            if (stockCode === 'xxxxxx') {
+                document.getElementById('debug').innerHTML = '等待通达信传入股票代码...';
+                return;
+            }
+            
+            const codeMatch = window.location.href.match(/code=(\d+)/);
+            if (codeMatch) {
+                stockCode = codeMatch[1];
+                const securityId = codeToIdMap.get(stockCode);
+                if (securityId) {
+                    const market = stockCode.startsWith('6') ? 'XSHG' : 'XSHE';
+                    const targetUrl = `https://www.marketsmith.hk/webtool/quote?securityId=${securityId}&MIC=${market}&type=STOCK`;
+                    
+                    // 添加调试信息
+                    document.getElementById('debug').innerHTML = 
+                        '股票代码: ' + stockCode + '<br>' +
+                        'SecurityID: ' + securityId + '<br>' +
+                        '准备跳转到: ' + targetUrl;
+
+                    // 仅在通达信浏览器中跳转
+                    window.location.replace(targetUrl);
+                    return;
+                }
+            }
+            
+            document.getElementById('debug').innerHTML += '<br>未找到对应的股票映射';
+        }
+    </script>
+</body>
+</html>
